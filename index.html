@@ -88,22 +88,7 @@ H5P.DragNBarElement=function(s,o){function t(t,i,e){var n=this;o.call(this),this
                 class="h5p-content lag" data-content-id="1957864971"></div>        
         </div>
 
-      <script>
-  /* ÖĞRENCİ ADI */
-
-  var studentName = sessionStorage.getItem('h5p_student_name');
-
-  if (!studentName) {
-    studentName = prompt("Lütfen adınızı veya takma adınızı yazınız:");
-
-    if (studentName) {
-      studentName = studentName.trim();
-      sessionStorage.setItem('h5p_student_name', studentName);
-    }
-  }
-</script>
-
-<script>
+     <script>
 var GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwUX6Tcxxd6FdihpBFN4V9n2lcffb2FCXs3JqStJXY4LsBbAnk6zBmcfVFOtjBzE3fuag/exec';
 
 var checkH5P = setInterval(function () {
@@ -114,14 +99,16 @@ var checkH5P = setInterval(function () {
 
     H5P.externalDispatcher.on('xAPI', function (event) {
 
-      if (event.getVerb() !== 'answered') {
+      // xAPI verb kontrolünü esnekleştiriyoruz (answered veya completed içerenler)
+      var verb = event.getVerb ? event.getVerb() : '';
+      if (!verb || (verb !== 'answered' && verb.indexOf('answered') === -1 && verb.indexOf('completed') === -1)) {
         return;
       }
 
       var stmt = event.data.statement;
 
       /* ÖĞRENCİ ADI */
-      var studentName = sessionStorage.getItem('h5p_student_name') || '';
+      var studentName = sessionStorage.getItem('h5p_student_name') || 'Anonim';
 
       /* SORU */
       var question = '';
@@ -146,6 +133,11 @@ var checkH5P = setInterval(function () {
             question = nameObject[languages[0]];
           }
         }
+      }
+
+      // Eğer soru ismi boş geldiyse varsayılan bir metin atayarak Apps Script'in "Soru boş" filtresine takılmasını önlüyoruz
+      if (!question || question.trim() === '') {
+        question = 'Etkileşimli Soru';
       }
 
       /* CEVAP */
@@ -193,7 +185,7 @@ var checkH5P = setInterval(function () {
           H5P.instances[0] &&
           H5P.instances[0].video
         ) {
-          videoTime = H5P.instances[0].video.getTime();
+          videoTime = Math.round(H5P.instances[0].video.getTime());
         }
       } catch (e) {}
 
@@ -202,7 +194,7 @@ var checkH5P = setInterval(function () {
         studentName: studentName,
         videoTime: videoTime,
         question: question,
-        answer: answer,
+        answer: String(answer),
         result: result,
         score: score,
         maxScore: maxScore
@@ -210,20 +202,19 @@ var checkH5P = setInterval(function () {
 
       var payload = JSON.stringify(data);
 
-      try {
-        navigator.sendBeacon(GOOGLE_SCRIPT_URL, payload);
-      } catch (e) {
-
-        fetch(GOOGLE_SCRIPT_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: {
-            'Content-Type': 'text/plain'
-          },
-          body: payload
-        });
-
-      }
+      // Doğrudan no-cors fetch kullanarak kesin gönderim sağlıyoruz
+      fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8'
+        },
+        body: payload
+      }).then(function() {
+        console.log("xAPI Verisi Gönderildi:", data);
+      }).catch(function(err) {
+        console.error("Gönderim Hatası:", err);
+      });
 
     });
 
